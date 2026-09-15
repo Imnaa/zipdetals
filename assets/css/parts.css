@@ -1,4 +1,4 @@
-/* Стили для таблицы запчастей, собираемой из data/parts.csv */
+/* Стили для таблицы запчастей, собираемой из Google Таблицы / data/parts.csv */
 
 /* Панель активной вкладки (id-правила в main.css рассчитаны только на 5 вкладок,
    это правило работает для любого их количества). */
@@ -9,6 +9,8 @@
 .tabs > label .tab-count {
 	opacity: 0.6;
 }
+
+/* ------------------------------- поиск ------------------------------- */
 
 .parts-search {
 	margin-bottom: 12px;
@@ -43,10 +45,6 @@
 	opacity: 0.6;
 }
 
-#parts table tr[hidden] {
-	display: none;
-}
-
 .parts-notice {
 	margin: 0 0 12px 0;
 	padding: 8px 10px;
@@ -55,4 +53,317 @@
 	background: #FDF3D8;
 	border: 1px solid #E8D48A;
 	border-radius: 4px;
+}
+
+/* ------------------------------ таблица ------------------------------ */
+
+/* Восемь колонок на телефоне не помещаются — прокручиваем таблицу вбок,
+   а не страницу целиком. */
+.table-wrap {
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+}
+
+.parts-table {
+	min-width: 660px;
+}
+
+/* Отступы темы (0.5em 1em) на восьми колонках не дают им поместиться
+   по ширине — ужимаем, чтобы «Сумма» и «Фото» были видны без прокрутки. */
+#parts .parts-table th,
+#parts .parts-table td {
+	padding: 6px 8px;
+}
+
+#parts .parts-table th {
+	font-size: 0.95em;
+	line-height: 1.25;
+}
+
+#parts table tr[hidden] {
+	display: none;
+}
+
+.col-pick,
+.col-num {
+	width: 1%;
+	text-align: center;
+	white-space: nowrap;
+}
+
+/* Вся ячейка выбора — одна большая кнопка.
+   height: 100% внутри table-cell не растягивает элемент на всю высоту строки,
+   поэтому label растянут абсолютом по границам ячейки. */
+#parts .col-pick {
+	width: 44px;
+	min-width: 44px;
+}
+
+#parts td.col-pick {
+	position: relative;
+	padding: 0;
+}
+
+#parts .pick-box {
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin: 0;
+	padding: 0;
+	cursor: pointer;
+	transition: background-color 0.15s ease-in-out;
+}
+
+#parts .pick-box:hover {
+	background: #DDEFE4;
+}
+
+#parts .pick-box:active {
+	background: #C3E4CE;
+}
+
+/* Тема гасит отрисовку всех полей (`input { appearance: none }` в main.css),
+   поэтому галочку рисуем сами. */
+#parts .col-pick input[type="checkbox"] {
+	position: relative;
+	display: inline-block;
+	flex: none;
+	width: 22px;
+	height: 22px;
+	margin: 0;
+	padding: 0;
+	vertical-align: middle;
+	background: #fff;
+	border: 2px solid #4A7C59;
+	border-radius: 4px;
+	cursor: pointer;
+	-webkit-appearance: none;
+	appearance: none;
+}
+
+#parts .col-pick input[type="checkbox"]:hover {
+	border-color: #2E7D32;
+	background: #F1F9F3;
+}
+
+#parts .col-pick input[type="checkbox"]:checked {
+	background: #2E7D32;
+	border-color: #2E7D32;
+}
+
+#parts .col-pick input[type="checkbox"]:checked::after {
+	content: '';
+	position: absolute;
+	left: 6px;
+	top: 2px;
+	width: 5px;
+	height: 11px;
+	border: solid #fff;
+	border-width: 0 3px 3px 0;
+	transform: rotate(45deg);
+}
+
+#parts .col-pick input[type="checkbox"]:focus-visible {
+	outline: 2px solid #0C213B;
+	outline-offset: 2px;
+}
+
+.col-price,
+.col-sum {
+	text-align: right;
+	white-space: nowrap;
+}
+
+.col-sum {
+	font-weight: bold;
+}
+
+.col-qty {
+	white-space: nowrap;
+}
+
+/* выбранная строка — заметно, поверх полосатой заливки из main.css */
+#parts .parts-table tr.is-picked td {
+	background: #CDE9D6;
+	border-top-color: #2E7D32;
+	border-bottom-color: #2E7D32;
+}
+
+#parts .parts-table tr.is-picked td:first-child {
+	box-shadow: inset 5px 0 0 #2E7D32;
+}
+
+#parts .parts-table tr.is-picked .col-sum {
+	color: #1B5E20;
+}
+
+/* --------------------------- выбор количества ------------------------ */
+
+.qty {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+}
+
+/* Тема задаёт кнопкам `color: #fff !important` и огромные отступы —
+   перебиваем, иначе «+» и «−» белые на белом. */
+#parts .qty-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	font-size: 20px;
+	font-weight: bold;
+	line-height: 1;
+	color: #0C213B !important;
+	background: #E8F2EC;
+	background-image: none;
+	border: 1px solid #4A7C59;
+	border-radius: 4px;
+	cursor: pointer;
+	transition: background-color 0.15s ease-in-out;
+}
+
+#parts .qty-btn:hover {
+	background: #2E7D32;
+	color: #fff !important;
+	border-color: #2E7D32;
+}
+
+#parts .qty-btn:active {
+	background: #1B5E20;
+	color: #fff !important;
+}
+
+#parts .qty-btn:focus-visible {
+	outline: 2px solid #0C213B;
+	outline-offset: 2px;
+}
+
+#parts .qty-input {
+	width: 46px;
+	height: 28px;
+	padding: 0 2px;
+	font-size: 16px;
+	font-weight: bold;
+	line-height: 28px;
+	text-align: center;
+	color: #0C213B;
+	background: #fff;
+	border: 1px solid #4A7C59;
+	border-radius: 4px;
+	-moz-appearance: textfield;
+	appearance: textfield;
+}
+
+#parts .qty-input:focus {
+	outline: none;
+	border-color: #2E7D32;
+	box-shadow: 0 0 0 2px rgba(46, 125, 50, 0.25);
+}
+
+.qty-input::-webkit-outer-spin-button,
+.qty-input::-webkit-inner-spin-button {
+	-webkit-appearance: none;
+	margin: 0;
+}
+
+.qty-stock {
+	display: block;
+	margin-top: 2px;
+	font-size: 0.85em;
+	opacity: 0.6;
+}
+
+.qty-out {
+	opacity: 0.6;
+	white-space: nowrap;
+}
+
+/* ---------------------------- панель заказа -------------------------- */
+
+.order {
+	margin-top: 20px;
+	padding: 14px 16px;
+	text-align: left;
+	background: #fff;
+	border: 1px solid #A9E2CC;
+	border-radius: 6px;
+}
+
+.order-title {
+	margin: 0 0 8px 0;
+	font-size: 1.1em;
+	font-weight: bold;
+	letter-spacing: 0;
+	text-transform: none;
+	color: #0C213B;
+}
+
+.order-group {
+	margin: 10px 0 4px 0;
+	font-size: 0.95em;
+	font-weight: bold;
+	letter-spacing: 0;
+	text-transform: none;
+	color: #0C213B;
+}
+
+.order-list ul {
+	margin: 0;
+	padding-left: 20px;
+	list-style: disc;
+}
+
+#parts .order-list li {
+	margin: 0;
+	padding: 1px 0;
+	font-size: 0.95em;
+	line-height: 1.5;
+	color: #0C213B;
+}
+
+/* Тема красит strong в серый (#666) — суммы должны выделяться, а не гаснуть. */
+#parts .order-list li strong {
+	color: #1B5E20;
+}
+
+.order-code {
+	opacity: 0.6;
+}
+
+#parts .order-total {
+	margin: 14px 0 0 0;
+	font-size: 1.25em;
+	color: #0C213B;
+}
+
+#parts .order-total strong {
+	color: #1B5E20;
+}
+
+.order-warning {
+	margin: 6px 0 0 0;
+	font-size: 0.9em;
+	color: #8A6D3B;
+}
+
+.order-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 14px;
+}
+
+.order-hint {
+	margin: 8px 0 0 0;
+	font-size: 0.9em;
+	opacity: 0.75;
 }
