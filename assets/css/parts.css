@@ -20,6 +20,38 @@
 	line-height: 1.6;
 }
 
+/* ---------------------------- курс валют ----------------------------- */
+
+.rates {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	justify-content: center;
+	gap: 4px 16px;
+	margin: 0 0 12px 0;
+	padding: 8px 12px;
+	font-size: 0.9em;
+	color: #0C213B;
+	background: #EEF6FB;
+	border: 1px solid #A9E2CC;
+	border-radius: 4px;
+}
+
+.rates-title {
+	opacity: 0.75;
+}
+
+.rates-item {
+	white-space: nowrap;
+}
+
+.rates-off {
+	display: block;
+	text-align: center;
+	background: #FDF3D8;
+	border-color: #E8D48A;
+}
+
 /* ------------------------------- поиск ------------------------------- */
 
 .parts-search {
@@ -82,7 +114,7 @@
    по ширине — ужимаем, чтобы «Сумма» и «Фото» были видны без прокрутки. */
 #parts .parts-table th,
 #parts .parts-table td {
-	padding: 6px 8px;
+	padding: 6px 7px;
 }
 
 #parts .parts-table th {
@@ -191,6 +223,16 @@
 
 .col-sum {
 	font-weight: bold;
+}
+
+/* рублёвый эквивалент под ценой в валюте */
+.in-rub {
+	display: block;
+	margin-top: 1px;
+	font-size: 0.85em;
+	font-weight: normal;
+	opacity: 0.7;
+	white-space: nowrap;
 }
 
 .col-qty {
@@ -357,6 +399,14 @@
 
 #parts .order-total strong {
 	color: #1B5E20;
+}
+
+/* рублёвый эквивалент итога — второй строкой, спокойнее основной суммы */
+.order-rub {
+	display: block;
+	margin-top: 2px;
+	font-size: 0.75em;
+	opacity: 0.8;
 }
 
 .order-warning {

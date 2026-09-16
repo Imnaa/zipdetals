@@ -22,6 +22,13 @@
 	var SHEET_URL = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?tqx=out:csv';
 	var BACKUP_URL = 'data/parts.csv';
 
+	// Курс ЦБ РФ. Сам cbr.ru не отдаёт заголовок CORS, поэтому браузер его
+	// прочитать не может; берём ежедневную выгрузку тех же данных с зеркала.
+	var RATES_URL = 'https://www.cbr-xml-daily.ru/daily_json.js';
+
+	// Валюта, если в таблице она не указана.
+	var DEFAULT_CURRENCY = 'RUB';
+
 	// Куда уходит письмо с заказом.
 	var MAIL_TO = 'pershin1950@mail.ru';
 	var MAIL_CC = 'kolya.romashenko@ya.ru';
@@ -88,6 +95,7 @@
 		name:     function (k) { return k.indexOf('наимен') === 0 || k.indexOf('назван') === 0 || k === 'товар'; },
 		code:     function (k) { return k.indexOf('код') === 0 || k.indexOf('чертеж') !== -1 || k.indexOf('артикул') === 0; },
 		price:    function (k) { return k.indexOf('цена') === 0 || k.indexOf('стоим') === 0; },
+		currency: function (k) { return k.indexOf('валют') === 0; },
 		stock:    function (k) { return k.indexOf('колич') === 0 || k.indexOf('колво') === 0 || k.indexOf('остат') === 0; },
 		photo:    function (k) { return k.indexOf('фото') === 0 || k.indexOf('изобр') === 0 || k.indexOf('картин') === 0; }
 	};
@@ -122,6 +130,49 @@
 		return isFinite(n) ? n : null;
 	}
 
+	/* ------------------------------ валюты ------------------------------ */
+
+	// Что может стоять в ячейке цены или в колонке «Валюта».
+	var CURRENCY_SIGNS = { '₽': 'RUB', '$': 'USD', '€': 'EUR', '£': 'GBP', '¥': 'CNY' };
+	var CURRENCY_WORDS = [
+		[/^(руб|rub|р$|р\.)/, 'RUB'],
+		[/^(евро|eur)/,       'EUR'],
+		[/^(доллар|usd|бакс)/, 'USD'],
+		[/^(юан|cny|rmb)/,    'CNY'],
+		[/^(фунт|gbp)/,       'GBP'],
+		[/^(иен|jpy)/,        'JPY']
+	];
+
+	// «1 500 €», «$200», «200 USD», «евро» -> код валюты; иначе null.
+	function detectCurrency(text) {
+		var s = String(text || '').trim();
+		if (!s) return null;
+
+		var sign = null;
+		Object.keys(CURRENCY_SIGNS).forEach(function (ch) {
+			if (s.indexOf(ch) !== -1) sign = CURRENCY_SIGNS[ch];
+		});
+		if (sign) return sign;
+
+		// трёхбуквенный код где угодно в ячейке: «200 USD», «USD 200»
+		var code = s.toUpperCase().match(/\b([A-Z]{3})\b/);
+		if (code) return code[1];
+
+		var word = s.toLowerCase().replace(/[^a-zа-я.]/g, '');
+		for (var i = 0; i < CURRENCY_WORDS.length; i++) {
+			if (CURRENCY_WORDS[i][0].test(word)) return CURRENCY_WORDS[i][1];
+		}
+		return null;
+	}
+
+	// Google Таблицы показывают числовой код как «100 087» — разделитель
+	// разрядов там неразрывный пробел, и поиск по «100087» такую позицию
+	// не находит. У чисто числовых кодов пробелы убираем; у буквенно-цифровых
+	// («VTR 304 HZTL») они значимы, поэтому их не трогаем.
+	function cleanCode(v) {
+		return /^[\d\s\u00A0]+$/.test(v) ? v.replace(/[\s\u00A0]/g, '') : v;
+	}
+
 	function toItems(rows) {
 		var map = mapColumns(rows[0].map(function (h) { return h.trim(); }));
 		if (map.name === undefined) throw new Error('не найдена колонка «Наименование»');
@@ -132,12 +183,19 @@
 			}
 			var stock = parseNumber(cell('stock'));
 
+			// Отдельная колонка «Валюта» главнее: Google Таблицы умеют
+			// проглотить символ валюты, превратив ячейку в обычное число.
+			var currency = detectCurrency(cell('currency')) ||
+			               detectCurrency(cell('price')) ||
+			               DEFAULT_CURRENCY;
+
 			return {
 				category: cell('category') || 'Прочее',
 				section:  cell('section'),
 				name:     cell('name'),
-				code:     cell('code'),
+				code:     cleanCode(cell('code')),
 				price:    parseNumber(cell('price')),
+				currency: currency,
 				stock:    stock === null ? 0 : Math.max(0, Math.floor(stock)),
 				photos:   cell('photo').split(PHOTO_SEPARATOR).filter(Boolean)
 			};
@@ -174,8 +232,66 @@
 		return n.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 	}
 
-	function money(n) { return num(n) + ' ₽'; }        // для страницы
-	function moneyPlain(n) { return num(n) + ' руб.'; }     // для письма
+	var CURRENCY_LABEL = {
+		RUB: { sign: '₽',  plain: 'руб.' },
+		USD: { sign: '$',       plain: 'USD' },
+		EUR: { sign: '€',  plain: 'EUR' },
+		CNY: { sign: '¥',  plain: 'CNY' },
+		GBP: { sign: '£',  plain: 'GBP' },
+		JPY: { sign: '¥',  plain: 'JPY' }
+	};
+
+	function sign(cur, plain) {
+		var l = CURRENCY_LABEL[cur];
+		return l ? (plain ? l.plain : l.sign) : cur;
+	}
+
+	function money(n, cur) { return num(n) + ' ' + sign(cur || 'RUB', false); }       // для страницы
+	function moneyPlain(n, cur) { return num(n) + ' ' + sign(cur || 'RUB', true); }   // для письма
+
+	/* --------------------------- курс ЦБ РФ ----------------------------- */
+
+	var rates = null;   // { date: '16.09.2026', RUB: 1, USD: 84.2362, ... } или null
+
+	function loadRates() {
+		return fetch(RATES_URL)
+			.then(function (r) {
+				if (!r.ok) throw new Error('HTTP ' + r.status);
+				return r.json();
+			})
+			.then(function (d) {
+				var out = { date: new Date(d.Date).toLocaleDateString('ru-RU'), RUB: 1 };
+				Object.keys(d.Valute).forEach(function (code) {
+					var v = d.Valute[code];
+					// у части валют курс дан за 10 или 100 единиц
+					if (v && v.Value > 0 && v.Nominal > 0) out[code] = v.Value / v.Nominal;
+				});
+				return out;
+			});
+	}
+
+	// Сумма в рублях или null, если курса для этой валюты нет.
+	function toRub(amount, cur) {
+		if (amount === null) return null;
+		if (cur === 'RUB') return amount;
+		if (!rates || !rates[cur]) return null;
+		return amount * rates[cur];
+	}
+
+	// Цена на странице. Рублёвый пересчёт показываем только в «Сумме»: если
+	// дублировать его ещё и в «Цене», восемь колонок перестают помещаться
+	// по ширине и таблицу приходится листать вбок.
+	function priceHTML(amount, cur, withRub) {
+		if (amount === null) return '&mdash;';
+
+		var own = esc(money(amount, cur));
+		if (cur === 'RUB' || !withRub) return own;
+
+		var rub = toRub(amount, cur);
+		return rub === null
+			? own
+			: own + '<span class="in-rub">&asymp; ' + esc(money(rub, 'RUB')) + '</span>';
+	}
 
 	/* ------------------------- выбранные позиции ------------------------ */
 
@@ -226,7 +342,12 @@
 		if (!inStock) st.c = false;
 
 		var tr = el('tr');
-		tr.dataset.search = [item.name, item.code, item.section].join(' ').toLowerCase();
+		var haystack = [item.name, item.code, item.section]
+			.join(' ').toLowerCase().replace(/\u00A0/g, ' ');
+		tr.dataset.search = haystack;
+		// Код могут скопировать из таблицы вместе с разделителем разрядов
+		// («100 087»), поэтому ищем ещё и по варианту без пробелов.
+		tr.dataset.searchFlat = haystack.replace(/\s/g, '');
 
 		// --- выбор ---
 		// Галочка лежит внутри label во всю ячейку, поэтому нажатие
@@ -246,8 +367,7 @@
 		tr.appendChild(el('td', { 'class': 'col-num' }, String(index)));
 		tr.appendChild(el('td', null, esc(item.name)));
 		tr.appendChild(el('td', null, esc(item.code)));
-		tr.appendChild(el('td', { 'class': 'col-price' },
-			item.price === null ? '&mdash;' : esc(money(item.price))));
+		tr.appendChild(el('td', { 'class': 'col-price' }, priceHTML(item.price, item.currency, false)));
 
 		// --- количество: стрелки, не больше остатка ---
 		var qtyCell = el('td', { 'class': 'col-qty' });
@@ -404,13 +524,15 @@
 		wrap.appendChild(input);
 
 		input.addEventListener('input', function () {
-			var q = input.value.trim().toLowerCase();
+			var q = input.value.trim().toLowerCase().replace(/\u00A0/g, ' ');
+			var qFlat = q.replace(/\s/g, '');
 
 			tabs.querySelectorAll(':scope > div').forEach(function (panel, i) {
 				var found = 0;
 
 				panel.querySelectorAll('tr[data-search]').forEach(function (tr) {
-					var hit = !q || tr.dataset.search.indexOf(q) !== -1;
+					var hit = !q || tr.dataset.search.indexOf(q) !== -1 ||
+						(qFlat && tr.dataset.searchFlat.indexOf(qFlat) !== -1);
 					tr.hidden = !hit;
 					if (hit) found++;
 				});
@@ -463,10 +585,30 @@
 		return allRows.filter(function (r) { return r.st.c && r.item.stock > 0; });
 	}
 
-	function orderTotal(rows) {
-		return rows.reduce(function (sum, r) {
-			return sum + (r.item.price === null ? 0 : r.item.price * r.st.q);
-		}, 0);
+	// Заказ может быть в нескольких валютах: считаем и подытоги по каждой,
+	// и общий рублёвый эквивалент по курсу ЦБ.
+	function orderTotals(rows) {
+		var byCurrency = {}, order = [], rub = 0, missingRate = false;
+
+		rows.forEach(function (r) {
+			if (r.item.price === null) return;
+
+			var cur = r.item.currency;
+			var sum = r.item.price * r.st.q;
+
+			if (!(cur in byCurrency)) { byCurrency[cur] = 0; order.push(cur); }
+			byCurrency[cur] += sum;
+
+			var inRub = toRub(sum, cur);
+			if (inRub === null) missingRate = true; else rub += inRub;
+		});
+
+		return {
+			parts: order.map(function (c) { return { currency: c, sum: byCurrency[c] }; }),
+			rub: rub,
+			missingRate: missingRate,
+			mixed: order.length > 1 || (order.length === 1 && order[0] !== 'RUB')
+		};
 	}
 
 	function orderStamp() {
@@ -503,17 +645,39 @@
 			out.push('--- ' + group.name + ' ---');
 			group.items.forEach(function (r, i) {
 				var it = r.item;
-				out.push((i + 1) + '. ' + it.name +
+				var line = (i + 1) + '. ' + it.name +
 					(it.code ? ' (код ' + it.code + ')' : '') +
-					' - ' + r.st.q + ' шт. ' +
-					(it.price === null
-						? '- цена по запросу'
-						: 'x ' + moneyPlain(it.price) + ' = ' + moneyPlain(it.price * r.st.q)));
+					' - ' + r.st.q + ' шт. ';
+
+				if (it.price === null) {
+					line += '- цена по запросу';
+				} else {
+					var sum = it.price * r.st.q;
+					var rub = it.currency === 'RUB' ? null : toRub(sum, it.currency);
+					line += 'x ' + moneyPlain(it.price, it.currency) +
+						' = ' + moneyPlain(sum, it.currency) +
+						(rub === null ? '' : ' (' + moneyPlain(rub, 'RUB') + ')');
+				}
+				out.push(line);
 			});
 		});
 
+		var totals = orderTotals(rows);
 		out.push('');
-		out.push('ИТОГО: ' + moneyPlain(orderTotal(rows)));
+		if (totals.mixed) {
+			out.push('ИТОГО: ' + totals.parts.map(function (p) {
+				return moneyPlain(p.sum, p.currency);
+			}).join(' + '));
+			if (!totals.missingRate) {
+				out.push('В рублях по курсу ЦБ РФ' + (rates ? ' на ' + rates.date : '') +
+					': ' + moneyPlain(totals.rub, 'RUB'));
+			}
+		} else {
+			out.push('ИТОГО: ' + moneyPlain(totals.rub, 'RUB'));
+		}
+		if (totals.missingRate) {
+			out.push('(курс для части валют получить не удалось, пересчёт в рубли не сделан)');
+		}
 		if (noPrice.length) {
 			out.push('(для ' + noPrice.length + ' поз. цена не указана, прошу уточнить)');
 		}
@@ -614,7 +778,7 @@
 			// суммы по строкам
 			allRows.forEach(function (r) {
 				var sum = r.item.price === null ? null : r.item.price * r.st.q;
-				r.sumCell.innerHTML = sum === null ? '&mdash;' : esc(money(sum));
+				r.sumCell.innerHTML = priceHTML(sum, r.item.currency, true);
 				r.tr.classList.toggle('is-picked', r.st.c);
 			});
 
@@ -633,17 +797,35 @@
 					var it = r.item;
 					var line = esc(it.name) +
 						(it.code ? ' <span class="order-code">' + esc(it.code) + '</span>' : '') +
-						' &mdash; ' + r.st.q + ' шт.' +
-						(it.price === null
-							? ' <span class="order-code">(цена по запросу)</span>'
-							: ' &times; ' + esc(money(it.price)) +
-							  ' = <strong>' + esc(money(it.price * r.st.q)) + '</strong>');
+						' &mdash; ' + r.st.q + ' шт.';
+
+					if (it.price === null) {
+						line += ' <span class="order-code">(цена по запросу)</span>';
+					} else {
+						var sum = it.price * r.st.q;
+						var rub = it.currency === 'RUB' ? null : toRub(sum, it.currency);
+						line += ' &times; ' + esc(money(it.price, it.currency)) +
+							' = <strong>' + esc(money(sum, it.currency)) + '</strong>' +
+							(rub === null ? '' : ' <span class="order-code">&asymp; ' +
+								esc(money(rub, 'RUB')) + '</span>');
+					}
 					ul.appendChild(el('li', null, line));
 				});
 				list.appendChild(ul);
 			});
 
-			total.innerHTML = 'Итого: <strong>' + esc(money(orderTotal(rows))) + '</strong>';
+			var totals = orderTotals(rows);
+			if (totals.mixed) {
+				total.innerHTML = 'Итого: <strong>' + totals.parts.map(function (p) {
+					return esc(money(p.sum, p.currency));
+				}).join(' + ') + '</strong>' +
+					(totals.missingRate ? '' :
+						'<span class="order-rub">по курсу ЦБ РФ' +
+						(rates ? ' на ' + esc(rates.date) : '') +
+						' &asymp; <strong>' + esc(money(totals.rub, 'RUB')) + '</strong></span>');
+			} else {
+				total.innerHTML = 'Итого: <strong>' + esc(money(totals.rub, 'RUB')) + '</strong>';
+			}
 
 			var noPrice = rows.filter(function (r) { return r.item.price === null; }).length;
 			warning.hidden = noPrice === 0;
@@ -724,14 +906,48 @@
 			});
 	}
 
+	// Строка с курсом — только по валютам, которые реально встречаются в списке.
+	function buildRatesBar(items) {
+		var used = {}, codes = [];
+		items.forEach(function (it) {
+			if (it.price !== null && it.currency !== 'RUB' && !(it.currency in used)) {
+				used[it.currency] = true;
+				codes.push(it.currency);
+			}
+		});
+		if (!codes.length) return null;
+
+		if (!rates) {
+			return el('p', { 'class': 'rates rates-off' },
+				'Курс ЦБ РФ сейчас недоступен — цены показаны в валюте позиции, ' +
+				'без пересчёта в рубли.');
+		}
+
+		var known = codes.filter(function (c) { return rates[c]; });
+		if (!known.length) return null;
+
+		var bar = el('p', { 'class': 'rates' });
+		bar.appendChild(el('span', { 'class': 'rates-title' },
+			'Курс ЦБ РФ на ' + esc(rates.date) + ':'));
+
+		known.forEach(function (c) {
+			bar.appendChild(el('span', { 'class': 'rates-item' },
+				'1 ' + esc(sign(c, false)) + ' = <strong>' + esc(money(rates[c], 'RUB')) + '</strong>'));
+		});
+
+		return bar;
+	}
+
 	function render(container, items) {
 		allRows = [];
 		loadState();
 
 		var tabs = buildTabs(groupBy(items, function (it) { return it.category; }));
 		var order = buildOrderPanel();
+		var ratesBar = buildRatesBar(items);
 
 		container.innerHTML = '';
+		if (ratesBar) container.appendChild(ratesBar);
 		container.appendChild(buildSearchBox(tabs));
 		container.appendChild(tabs);
 		container.appendChild(order);
@@ -746,28 +962,39 @@
 		var container = document.getElementById('parts');
 		if (!container) return;
 
-		load(SHEET_URL)
+		// Курс тянем параллельно со списком; если ЦБ не ответил, список всё
+		// равно покажем — просто без пересчёта в рубли.
+		var ratesReady = loadRates().then(function (r) { rates = r; }, function () { rates = null; });
+
+		// Список: Google, а если не вышло — копия из репозитория.
+		var itemsReady = load(SHEET_URL)
 			.then(function (items) {
-				render(container, items);
+				return { items: items, notice: null };
+			}, function (sheetErr) {
+				return load(BACKUP_URL).then(function (items) {
+					return {
+						items: items,
+						notice: 'Google Таблица сейчас недоступна (' + esc(sheetErr.message) + '), ' +
+							'показан сохранённый список — возможно, без последних изменений.'
+					};
+				}, function (backupErr) {
+					throw new Error('Google: ' + sheetErr.message + ', резервная копия: ' + backupErr.message);
+				});
+			});
+
+		// Рисуем только когда известно и то, и другое: иначе строка курса
+		// успевает отрисоваться раньше, чем приходит сам курс.
+		Promise.all([itemsReady, ratesReady])
+			.then(function (result) {
+				render(container, result[0].items);
+				if (result[0].notice) showNotice(container, result[0].notice);
 			})
-			.catch(function (sheetErr) {
-				// Google не ответил — показываем копию из репозитория.
-				return load(BACKUP_URL)
-					.then(function (items) {
-						render(container, items);
-						showNotice(container,
-							'Google Таблица сейчас недоступна (' + esc(sheetErr.message) + '), ' +
-							'показан сохранённый список — возможно, без последних изменений.');
-					})
-					.catch(function (backupErr) {
-						showError(container,
-							'Не удалось загрузить список запчастей ' +
-							'(Google: ' + esc(sheetErr.message) + ', ' +
-							'резервная копия: ' + esc(backupErr.message) + '). ' +
-							'Если вы открыли страницу двойным щелчком по файлу — так браузер ' +
-							'не даёт читать данные; откройте сайт по адресу ' +
-							'<a href="https://imnaa.github.io/zipdetals/">imnaa.github.io/zipdetals</a>.');
-					});
+			.catch(function (err) {
+				showError(container,
+					'Не удалось загрузить список запчастей (' + esc(err.message) + '). ' +
+					'Если вы открыли страницу двойным щелчком по файлу — так браузер ' +
+					'не даёт читать данные; откройте сайт по адресу ' +
+					'<a href="https://imnaa.github.io/zipdetals/">imnaa.github.io/zipdetals</a>.');
 			});
 	});
 })();
