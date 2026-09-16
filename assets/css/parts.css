@@ -72,6 +72,12 @@
 	appearance: none;
 }
 
+/* Firefox по умолчанию приглушает подсказку — задаём цвет и opacity явно. */
+.parts-search input[type="search"]::placeholder {
+	color: #5F6B6B;
+	opacity: 1;
+}
+
 .parts-search input[type="search"]:focus {
 	outline: none;
 	border-color: #0C213B;

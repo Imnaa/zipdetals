@@ -1,0 +1,146 @@
+/*
+ *  Читаемость текста поверх темы.
+ *
+ *  Тема набирает весь текст цветом #888 начертанием 300. По замеру это
+ *  2,7–3,4:1 к фону при норме WCAG AA 4,5:1, а у выбранной вкладки было
+ *  и вовсе 1,89:1 (#888 на #bdbdbd). Здесь меняются только цвет и
+ *  насыщенность — вёрстка, размеры и отступы темы не трогаются.
+ *
+ *  Тёмная обложка (#top) и боковая панель живут по своим правилам: там
+ *  текст светлый, и его осветляем, а не затемняем.
+ */
+
+/* ------------------------- светлые секции ---------------------------- */
+
+#portfolio,
+#about,
+#contact {
+	color: #3F3F3F;
+}
+
+#portfolio p,
+#portfolio li,
+#about p,
+#about li,
+#contact p,
+#contact li {
+	color: #3F3F3F;
+	font-weight: 400;
+}
+
+#portfolio h2,
+#portfolio h3,
+#about h2,
+#about h3,
+#contact h2,
+#contact h3 {
+	color: #2B2B2B;
+}
+
+/* В теме strong имеет font-weight: 300 — то есть выделением не является. */
+#portfolio strong,
+#portfolio b,
+#about strong,
+#about b,
+#contact strong,
+#contact b {
+	color: #1F1F1F;
+	font-weight: 600;
+}
+
+#portfolio a,
+#about a,
+#contact a {
+	color: #1B5E8C;
+	text-decoration: underline;
+}
+
+#portfolio a:hover,
+#about a:hover,
+#contact a:hover {
+	color: #103C5C;
+}
+
+/* -------------------------- тёмная обложка --------------------------- */
+
+/* Фон обложки — фотография средней яркости (#81918E под ней): светлый текст
+   давал по замеру всего 3:1, а поверх светлых участков самого снимка и того
+   меньше. Кладём затемняющую подложку поверх фото — тогда контраст держится
+   независимо от того, что на кадре. */
+#main > section.one {
+	background-image:
+		linear-gradient(rgba(18, 28, 26, 0.55), rgba(18, 28, 26, 0.55)),
+		url("../../img/banner.JPG");
+}
+
+/* Тема ставит заголовкам на тёмной секции color: inherit правилом
+   `#main > section.dark h2` — перебиваем с той же точностью. */
+#main > section.dark h2.alt,
+#main > section.dark h2.alt strong {
+	color: #FFFFFF;
+}
+
+#main > section.dark h2.alt strong {
+	font-weight: 600;
+}
+
+#main > section.dark p {
+	color: #F4F6F6;
+	font-weight: 400;
+}
+
+/* ------------------------- вкладки категорий ------------------------- */
+
+.tabs > label {
+	color: #2B2B2B;
+	font-weight: 600;
+	background-color: #E3E8E8;
+	border: 1px solid #C2CCCC;
+}
+
+.tabs > label:hover {
+	background-color: #D2DADA;
+	border-color: #A9B6B6;
+}
+
+/* Выбранная вкладка: тем же зелёным, что и отмеченные строки в таблице,
+   чтобы «выбрано» везде читалось одинаково. */
+.tabs > input[type="radio"]:checked + label {
+	color: #FFFFFF;
+	background-color: #2E7D32;
+	border-color: #2E7D32;
+}
+
+.tabs > input[type="radio"]:focus-visible + label {
+	outline: 2px solid #0C213B;
+	outline-offset: 2px;
+}
+
+/* ----------------------------- подвал -------------------------------- */
+
+#footer .copyright li {
+	color: #4A4A4A;
+}
+
+#footer .copyright a {
+	color: #1B5E8C;
+}
+
+/* ---------------------------- кнопки темы ---------------------------- */
+
+/* Тема красит свои кнопки в #8ebebc белым текстом — это 2:1. Берём тот же
+   оттенок, но темнее, чтобы надпись читалась. Кнопки Bootstrap (.btn-*)
+   сюда не попадают: у них свои цвета и свой контраст. */
+#main .button,
+#main input[type="button"],
+#main input[type="submit"],
+#main input[type="reset"] {
+	background-color: #3F7C79;
+}
+
+#main .button:hover,
+#main input[type="button"]:hover,
+#main input[type="submit"]:hover,
+#main input[type="reset"]:hover {
+	background-color: #356866;
+}
