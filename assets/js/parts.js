@@ -522,23 +522,6 @@
 		return out.join('\n');
 	}
 
-	// Запасной вариант для длинного заказа: сам список уходит в буфер обмена.
-	function buildShortOrderText(rows) {
-		var out = [];
-
-		out.push('Здравствуйте!');
-		out.push('');
-		out.push('Заказ с сайта ' + SITE_URL);
-		out.push('Дата: ' + orderStamp());
-		out.push('');
-		out.push('Выбрано позиций: ' + rows.length + ', на сумму ' + moneyPlain(orderTotal(rows)) + '.');
-		out.push('Список скопирован в буфер обмена - вставьте его сюда (Ctrl+V):');
-		out.push('');
-		out.push('');
-		contactsBlock(out);
-
-		return out.join('\n');
-	}
 
 	function mailtoURL(body) {
 		var subject = 'Заказ с сайта imnaa.github.io/zipdetals от ' +
@@ -581,28 +564,18 @@
 			var rows = selectedRows();
 			if (!rows.length) return;
 
-			var full = buildOrderText(rows);
-			var url = mailtoURL(full);
+			// В письмо всегда уходит полный список выбранного.
+			var url = mailtoURL(buildOrderText(rows));
 
-			if (url.length <= MAILTO_LIMIT) {
-				hint.hidden = true;
-				window.location.href = url;
-				return;
+			// Часть почтовых программ (заметнее всего Outlook) обрезает очень
+			// длинные ссылки — предупреждаем и оставляем ручной запасной путь.
+			hint.hidden = url.length <= MAILTO_LIMIT;
+			if (!hint.hidden) {
+				hint.textContent = 'Заказ длинный. Если письмо откроется с неполным списком, ' +
+					'нажмите «Скопировать список» и вставьте его в письмо — так ничего не потеряется.';
 			}
 
-			// Заказ не помещается в ссылку — кладём список в буфер обмена,
-			// а в письме оставляем место, куда его вставить.
-			copyText(full).then(function () {
-				hint.hidden = false;
-				hint.textContent = 'Заказ большой — список скопирован в буфер обмена. ' +
-					'Вставьте его в открывшееся письмо (Ctrl+V).';
-				window.location.href = mailtoURL(buildShortOrderText(rows));
-			}, function () {
-				hint.hidden = false;
-				hint.textContent = 'Заказ большой, письмо может открыться с обрезанным текстом. ' +
-					'Нажмите «Скопировать список» и вставьте его в письмо вручную.';
-				window.location.href = url;
-			});
+			window.location.href = url;
 		});
 
 		copyBtn.addEventListener('click', function () {
