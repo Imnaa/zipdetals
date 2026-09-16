@@ -24,7 +24,7 @@
 
 	// Куда уходит письмо с заказом.
 	var MAIL_TO = 'pershin1950@mail.ru';
-	var MAIL_CC = 'kolya.romashenko@yandex.ru';
+	var MAIL_CC = 'kolya.romashenko@ya.ru';
 	var SITE_URL = 'https://imnaa.github.io/zipdetals/';
 
 	var STORAGE_KEY = 'zipdetals.order.v1';   // выбранные позиции переживают перезагрузку
